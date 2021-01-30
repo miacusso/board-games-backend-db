@@ -11,23 +11,25 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class DatabaseConnector {
 
-	private Connection connect() throws Exception {
+	private final Connection connection;
+
+	public DatabaseConnector() {
+
+		Connection conn = null;
 		try {
 			// Development:
-			Connection connection = DriverManager.getConnection("jdbc:postgresql://localhost:5432/board-games", "postgres", "postgres");
+			conn = DriverManager.getConnection("jdbc:postgresql://localhost:5432/board-games", "postgres", "postgres");
 			// Production:
 			//Connection connection = DriverManager.getConnection("jdbc:mysql://localhost:3306/id15411513_board_games", "id15411513_miacusso", "Maximiliano1acu$$o");
 			System.out.println("Connection success.");
-			return connection;
 		} catch (SQLException e) {
 			System.out.println("Connection failure.");
 			e.printStackTrace();
-			throw new Exception("Connection failure.");
 		}
+		this.connection = conn;
 	}
 
 	public void insertGameResult(Integer winner, Integer game) {
@@ -40,9 +42,7 @@ public class DatabaseConnector {
 
 	public void insertGameResult(GameResultDBO gameResult) {
 		try {
-
-			Connection connection = this.connect();
-			PreparedStatement preparedStatement = connection.prepareStatement("INSERT INTO results(date, winner, game) VALUES (?,?,?)");
+			PreparedStatement preparedStatement = this.connection.prepareStatement("INSERT INTO results(date, winner, game) VALUES (?,?,?)");
 			preparedStatement.setDate(1, Date.valueOf(gameResult.getDate()));
 			preparedStatement.setInt(2, gameResult.getWinner());
 			preparedStatement.setInt(3, gameResult.getGame());
@@ -50,9 +50,8 @@ public class DatabaseConnector {
 			preparedStatement.execute();
 
 			preparedStatement.close();
-			connection.close();
 
-		} catch (Exception e) {
+		} catch (SQLException e) {
 			System.out.println("Insertion failure.");
 			e.printStackTrace();
 		}
@@ -63,8 +62,7 @@ public class DatabaseConnector {
 		List<PlayerDBO> players = new ArrayList<PlayerDBO>();
 
 		try {
-			Connection connection = this.connect();
-			PreparedStatement preparedStatement = connection.prepareStatement("SELECT * FROM players WHERE (game = ?)");
+			PreparedStatement preparedStatement = this.connection.prepareStatement("SELECT * FROM players WHERE (game = ?)");
 			preparedStatement.setInt(1, game.getId());
 			System.out.println(preparedStatement);
 			ResultSet result = preparedStatement.executeQuery();
@@ -78,9 +76,8 @@ public class DatabaseConnector {
 			}
 
 			preparedStatement.close();
-			connection.close();
 
-		} catch (Exception e) {
+		} catch (SQLException e) {
 			System.out.println("Retrieve failure.");
 			e.printStackTrace();
 		}
@@ -90,48 +87,37 @@ public class DatabaseConnector {
 
 	public Map<String, Integer> retrieveResultsCountForGame(GameDBO game) {
 
-		List<PlayerDBO> players = this.retrievePlayersForGame(game);
-		Map<PlayerDBO, Integer> responseMap = new HashMap<PlayerDBO, Integer>();
+		Map<String, Integer> responseMap = new HashMap<String, Integer>();
 
 		try {
-			Connection connection = this.connect();
-			PreparedStatement preparedStatement = connection.prepareStatement("SELECT players.name, COUNT(winner) FROM players LEFT JOIN results ON players.id = results.winner WHERE (players.game = ?) GROUP BY players.name;");
+			PreparedStatement preparedStatement = this.connection.prepareStatement("SELECT players.name, COUNT(winner) FROM players LEFT JOIN results ON players.id = results.winner WHERE (players.game = ?) GROUP BY players.name;");
 			preparedStatement.setInt(1, game.getId());
 			System.out.println(preparedStatement);
 			ResultSet result = preparedStatement.executeQuery();
-
 			while (result.next()) {
-				String name = result.getString("name");
-
-				PlayerDBO playerDBO = players.stream().filter(player -> name.equals(player.getName())).findFirst().get();
-
-				responseMap.put(playerDBO, result.getInt("count"));
+				responseMap.put(result.getString("name"), result.getInt("count"));
 			}
 
 			preparedStatement.close();
-			connection.close();
 
-		} catch (Exception e) {
+		} catch (SQLException e) {
 			System.out.println("Retrieve failure.");
 			e.printStackTrace();
 		}
-
-		return responseMap.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getName(), e -> e.getValue()));
+		return responseMap;
 	}
 
 	public void removeResultsForGame(GameDBO game) {
 		try {
 
-			Connection connection = this.connect();
-			PreparedStatement preparedStatement = connection.prepareStatement("DELETE FROM results WHERE (game = ?)");
+			PreparedStatement preparedStatement = this.connection.prepareStatement("DELETE FROM results WHERE (game = ?)");
 			preparedStatement.setInt(1, game.getId());
 			System.out.println(preparedStatement);
 			preparedStatement.execute();
 
 			preparedStatement.close();
-			connection.close();
 
-		} catch (Exception e) {
+		} catch (SQLException e) {
 			System.out.println("Delete failure.");
 			e.printStackTrace();
 		}
